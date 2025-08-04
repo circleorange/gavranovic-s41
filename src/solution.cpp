@@ -12,6 +12,11 @@ Solution::Solution() :
 	    balance_cost_(0),
 	    process_move_cost_(0),
 	    machine_move_cost_(0),
+	    tracking_file_(0),
+	    move_counter_(0),
+	    solution_id_(1),
+	    start_timestamp_(0),
+	    tracking_enabled_(false),
 	    best_cost_(100000000000000) {}
 
 
@@ -264,6 +269,11 @@ void Solution::reassignProcess(Process* p, Machine* m){
 	}
     //*************************************************************************
 
+    // Track the reassignment if tracking is enabled
+    if (tracking_enabled_) {
+        int64 costImprovement = 0; // We could calculate actual improvement here if needed
+        trackProcessReassignment(p, oldMachine, m, costImprovement);
+    }
 
 }
 
@@ -833,5 +843,130 @@ void Solution::sortProcessesByPosition()
 {
 	processes_sorted = processes_;
 	sort(processes_sorted.begin(), processes_sorted.end(), abs_position);
+}
+
+// Tracking implementation
+void Solution::initializeTracker(const string& filename) {
+	if (tracking_file_) {
+		closeTracker();
+	}
+	
+	tracking_file_ = new ofstream(filename.c_str());
+	if (tracking_file_->is_open()) {
+		tracking_enabled_ = true;
+		move_counter_ = 0;
+		solution_id_ = 1;
+		start_timestamp_ = time(0) * 1000LL; // Convert to milliseconds
+		
+		// Write CSV header
+		*tracking_file_ << "MoveNum,ProcessID,SourceMachine,DestMachine,OriginalMachine,Service,MoveCost,ProcessResourceRequirements,Improvement,Timestamp,SolutionId,SourceMachineResourceUsage,DestMachineResourceUsage,SourceMachineCapacities,DestMachineCapacities,SourceMachineTransientUsage,DestMachineTransientUsage,SourceMachineProcessCount,DestMachineProcessCount,LoadCost,BalanceCost,SolutionCost" << endl;
+		tracking_file_->flush();
+	}
+}
+
+void Solution::trackProcessReassignment(Process* p, Machine* oldMachine, Machine* newMachine, int64 costImprovement) {
+	if (!tracking_enabled_ || !tracking_file_ || !tracking_file_->is_open()) {
+		return;
+	}
+	
+	move_counter_++;
+	solution_id_++;
+	long long current_timestamp = time(0) * 1000LL;
+	
+	// Get process information
+	int processId = p->getId();
+	int sourceM = (oldMachine != 0) ? oldMachine->getId() : -1;
+	int destM = (newMachine != 0) ? newMachine->getId() : -1;
+	int originalM = (p->getInitialMachine() != 0) ? p->getInitialMachine()->getId() : -1;
+	int serviceId = p->getService()->getId();
+	int64 moveCost = p->getMoveCost();
+	
+	// Process resource requirements
+	*tracking_file_ << move_counter_ << "," << processId << "," << sourceM << "," << destM << "," << originalM << "," << serviceId << "," << moveCost << ",\"[";
+	for (int r = 0; r < getNumberOfResources(); r++) {
+		if (r > 0) *tracking_file_ << ",";
+		*tracking_file_ << p->getRequirement(r);
+	}
+	*tracking_file_ << "]\"," << fixed << setprecision(4) << ((double)costImprovement) << "," << current_timestamp << "," << solution_id_;
+	
+	// Source machine resource usage
+	*tracking_file_ << ",\"[";
+	if (oldMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << oldMachine->getMachineResource(r)->getUsage();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Destination machine resource usage  
+	*tracking_file_ << ",\"[";
+	if (newMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << newMachine->getMachineResource(r)->getUsage();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Source machine capacities
+	*tracking_file_ << ",\"[";
+	if (oldMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << oldMachine->getMachineResource(r)->getCapacity();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Destination machine capacities
+	*tracking_file_ << ",\"[";
+	if (newMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << newMachine->getMachineResource(r)->getCapacity();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Source machine transient usage  
+	*tracking_file_ << ",\"[";
+	if (oldMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << oldMachine->getMachineResource(r)->getTransientUsage();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Destination machine transient usage
+	*tracking_file_ << ",\"[";
+	if (newMachine != 0) {
+		for (int r = 0; r < getNumberOfResources(); r++) {
+			if (r > 0) *tracking_file_ << ",";
+			*tracking_file_ << newMachine->getMachineResource(r)->getTransientUsage();
+		}
+	}
+	*tracking_file_ << "]\"";
+	
+	// Source and destination machine process counts
+	int sourceProcessCount = (oldMachine != 0) ? oldMachine->getNumberOfProcesses() : 0;
+	int destProcessCount = (newMachine != 0) ? newMachine->getNumberOfProcesses() : 0;
+	
+	*tracking_file_ << "," << sourceProcessCount << "," << destProcessCount;
+	
+	// Current costs
+	*tracking_file_ << "," << getLoadCost() << "," << getBalanceCost() << "," << getCost() << endl;
+	
+	tracking_file_->flush();
+}
+
+void Solution::closeTracker() {
+	if (tracking_file_) {
+		tracking_file_->close();
+		delete tracking_file_;
+		tracking_file_ = 0;
+	}
+	tracking_enabled_ = false;
 }
 

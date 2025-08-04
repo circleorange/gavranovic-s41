@@ -48,6 +48,10 @@ int main(int argc, char **argv)
 	  preprocesData(sol);
 	  Solution* sol2 = constructSolution(params2);
 	  preprocesData(sol2);
+	  
+	  // Initialize tracking for both solutions
+	  sol->initializeTracker("process_reassignments_sol1.csv");
+	  sol2->initializeTracker("process_reassignments_sol2.csv");
 	 //*********************************************************************************************
 
 
@@ -137,6 +141,10 @@ int main(int argc, char **argv)
 	  system(oss.str().c_str());
 	   */
 	  //*************************************************************************************************************************
+
+	  // Close tracking files
+	  sol->closeTracker();
+	  sol2->closeTracker();
 
 	  return 0;
 

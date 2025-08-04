@@ -2,6 +2,9 @@
 #define SOLUTION_H_
 
 #include <vector>
+#include <fstream>
+#include <ctime>
+#include <iomanip>
 using namespace std;
 
 
@@ -44,7 +47,19 @@ class Solution {
     int64   process_move_cost_;
     int64   machine_move_cost_;
 
+    // tracking variables
+    ofstream* tracking_file_;
+    int move_counter_;
+    long long solution_id_;
+    long long start_timestamp_;
+    bool tracking_enabled_;
+
   public:
+     // tracking methods
+     void initializeTracker(const string& filename);
+     void trackProcessReassignment(Process* p, Machine* oldMachine, Machine* newMachine, int64 costImprovement);
+     void closeTracker();
+     
      // used when changing load weights
      void calculateLoadCost();
 

@@ -41,6 +41,10 @@ public:
     int64 getTransientRemainingCapacityInInitialSolution() {
     	return remaining_transient_capacity_in_initial_solution_;
     }
+    
+    // Helper methods for tracking
+    int64 getUsage() { return capacity_ - remaining_capacity_; }
+    int64 getTransientUsage() { return capacity_ - remaining_transient_capacity_; }
 
 	int64 getLoadCost() ;
 
